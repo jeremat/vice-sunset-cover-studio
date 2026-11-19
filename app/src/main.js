@@ -295,9 +295,20 @@ const shot = params.get('shot');
 if (shot) {
   runShot(shot, params, async (sample, text, layout, grade) => {
     const a = await loadImage(sample);
-    const b = await loadImage('samples/pier.jpg');
+    // The second panel gets the other sample photo, so every layout
+    // shows two different photos even when the shot names only one.
+    const other = sample.includes('pier') ? 'samples/boulevard.jpg' : 'samples/pier.jpg';
+    const b = await loadImage(other);
     state.panels[0].photo = a;
     state.panels[1].photo = b;
+    // In shot scenes every visible panel gets a photo: the third panel
+    // reuses the first photo as a tighter detail crop.
+    state.panels[2].photo = a;
+    state.panels[2].zoom = 1.5;
+    state.panels[2].fx = 0.35;
+    state.panels[2].fy = 0.3;
+    state.panels[3].photo = b;
+    state.panels[3].zoom = 1.3;
     state.title = text;
     if (layout && LAYOUTS[layout]) state.layout = layout;
     if (grade && GRADES[grade]) state.grade = grade;
