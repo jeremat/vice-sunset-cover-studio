@@ -16,6 +16,7 @@ export const LAYOUTS = {
   trio: { label: 'Trio', panels: 3 },
   grid: { label: 'Grid', panels: 4 },
   strip: { label: 'Strip', panels: 3 },
+  mosaic: { label: 'Mosaic', panels: 5 },
 };
 
 export const GRADES = {
@@ -79,6 +80,18 @@ export const GRADES = {
     accent2: '#fda4af',
     ink: '#032e2c',
   },
+  pop: {
+    label: 'Vice Pop',
+    sky: ['#2a0a4a', '#7c3aed'],
+    skyMid: '#ec4899',
+    skyLow: '#22d3ee',
+    sun: '#fde047',
+    tint: 'rgba(236, 72, 153, 0.22)',
+    tint2: 'rgba(34, 211, 238, 0.14)',
+    accent: '#f472b6',
+    accent2: '#22d3ee',
+    ink: '#1e0638',
+  },
 };
 
 export const SIZES = {
@@ -99,13 +112,13 @@ export function defaultState() {
     title: 'VICE SUNSET',
     subtitle: 'A STORY IN NEON',
     tagline: 'Made with Vice Sunset Cover Studio',
-    layout: 'trio',
-    grade: 'sunset',
+    layout: 'mosaic',
+    grade: 'pop',
     size: 'square',
     showSun: true,
     showPalms: true,
     grain: true,
-    panels: [blankPanel(), blankPanel(), blankPanel(), blankPanel()],
+    panels: [blankPanel(), blankPanel(), blankPanel(), blankPanel(), blankPanel()],
   };
 }
 
@@ -114,9 +127,11 @@ export function defaultState() {
  * The title band at the bottom is kept clear of panels in every layout.
  */
 export function layoutRects(layout, w, h) {
-  const titleH = h * 0.24;
+  // The mosaic layout has no bottom title band: its title block sits in
+  // the middle of the panels, so the panels use the full height.
+  const titleH = layout === 'mosaic' ? 0 : h * 0.24;
   const top = h * 0.03;
-  const areaH = h - titleH - top;
+  const areaH = h - titleH - top - (layout === 'mosaic' ? h * 0.03 : 0);
   const gap = Math.max(6, w * 0.012);
   const x0 = w * 0.03;
   const x1 = w * 0.97;
@@ -141,6 +156,22 @@ export function layoutRects(layout, w, h) {
       { x: x0 + pw + gap, y: top, w: pw, h: ph },
       { x: x0, y: top + ph + gap, w: pw, h: ph },
       { x: x0 + pw + gap, y: top + ph + gap, w: pw, h: ph },
+    ];
+  }
+  if (layout === 'mosaic') {
+    // Mosaic: three panels across the top, two wide panels across the
+    // bottom, and the central V title block overlapping the middle gap.
+    const topH = areaH * 0.42;
+    const botY = top + topH + gap;
+    const botH = areaH - topH - gap;
+    const third = (aw - gap * 2) / 3;
+    const half = (aw - gap) / 2;
+    return [
+      { x: x0, y: top, w: third, h: topH },
+      { x: x0 + third + gap, y: top, w: third, h: topH },
+      { x: x0 + (third + gap) * 2, y: top, w: third, h: topH },
+      { x: x0, y: botY, w: half, h: botH },
+      { x: x0 + half + gap, y: botY, w: half, h: botH },
     ];
   }
   // trio: one tall hero panel on the left, two stacked on the right.
@@ -318,6 +349,101 @@ function fitFont(ctx, text, maxWidth, startSize, family) {
   return size;
 }
 
+/**
+ * The mosaic title block: a big downward V in a hot pink-to-purple
+ * gradient with a white keyline, the title stacked inside it in our own
+ * lettering. It is a geometric shape with original text — not a logo.
+ */
+function drawMosaicTitle(ctx, w, h, state) {
+  const g = GRADES[state.grade] || GRADES.sunset;
+  const cx = w / 2;
+  const top = h * 0.34;
+  const bottom = h * 0.68;
+  const half = w * 0.27;
+  // V shape.
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - half, top);
+  ctx.lineTo(cx + half, top);
+  ctx.lineTo(cx, bottom);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(cx - half, top, cx + half, bottom);
+  grad.addColorStop(0, '#a855f7');
+  grad.addColorStop(0.5, g.accent);
+  grad.addColorStop(1, '#f97316');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(4, w * 0.006);
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = g.ink;
+  ctx.stroke();
+  ctx.clip();
+  // Halftone dots fading down the V.
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  const step = Math.max(10, w * 0.018);
+  for (let y = top + step; y < bottom; y += step) {
+    for (let x = cx - half; x < cx + half; x += step) {
+      const r = 1 + ((y - top) / (bottom - top)) * 2.5;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  const title = (state.title || 'VICE SUNSET').trim().toUpperCase();
+  const family = `'Arial Black', Impact, 'Helvetica Neue', sans-serif`;
+  // Two lines if the title has a space: "VICE" over "SUNSET", like a
+  // poster monogram; one line otherwise.
+  const words = title.split(/\s+/);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  if (words.length > 1) {
+    const first = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+    const second = words.slice(Math.ceil(words.length / 2)).join(' ');
+    const size = fitFont(ctx, second, half * 1.5, h * 0.075, family);
+    ctx.font = `900 ${size}px ${family}`;
+    ctx.lineWidth = Math.max(3, size * 0.1);
+    ctx.strokeStyle = g.ink;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeText(first, cx, top + (bottom - top) * 0.32);
+    ctx.fillText(first, cx, top + (bottom - top) * 0.32);
+    ctx.strokeText(second, cx, top + (bottom - top) * 0.55);
+    ctx.fillText(second, cx, top + (bottom - top) * 0.55);
+  } else {
+    const size = fitFont(ctx, title, half * 1.6, h * 0.075, family);
+    ctx.font = `900 ${size}px ${family}`;
+    ctx.lineWidth = Math.max(3, size * 0.1);
+    ctx.strokeStyle = g.ink;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeText(title, cx, top + (bottom - top) * 0.42);
+    ctx.fillText(title, cx, top + (bottom - top) * 0.42);
+  }
+  const sub = (state.subtitle || '').trim().toUpperCase();
+  if (sub) {
+    const subSize = fitFont(ctx, sub, half * 1.4, h * 0.026, `'Helvetica Neue', Arial, sans-serif`);
+    ctx.font = `700 ${subSize}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.lineWidth = Math.max(2, subSize * 0.16);
+    ctx.strokeStyle = g.ink;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeText(sub, cx, top + (bottom - top) * 0.76);
+    ctx.fillText(sub, cx, top + (bottom - top) * 0.76);
+  }
+  ctx.restore();
+
+  const tag = (state.tagline || '').trim();
+  if (tag) {
+    ctx.font = `${Math.max(11, h * 0.014)}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(tag, w / 2, h * 0.985);
+  }
+}
+
 function drawTitleBlock(ctx, w, h, state) {
   const g = GRADES[state.grade] || GRADES.sunset;
   const bandY = h * 0.78;
@@ -421,7 +547,8 @@ export function drawCover(canvas, state) {
   for (let i = 0; i < n; i++) {
     drawPhotoPanel(ctx, rects[i], state.panels[i] || blankPanel(), grade);
   }
-  drawTitleBlock(ctx, w, h, state);
+  if ((state.layout || 'trio') === 'mosaic') drawMosaicTitle(ctx, w, h, state);
+  else drawTitleBlock(ctx, w, h, state);
   if (state.grain) addGrain(ctx, w, h, 1234567);
   return rects.slice(0, n);
 }

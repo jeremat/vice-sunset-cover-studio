@@ -309,6 +309,10 @@ if (shot) {
     state.panels[2].fy = 0.3;
     state.panels[3].photo = b;
     state.panels[3].zoom = 1.3;
+    state.panels[4].photo = b;
+    state.panels[4].zoom = 1.7;
+    state.panels[4].fx = 0.22;
+    state.panels[4].fy = 0.22;
     state.title = text;
     if (layout && LAYOUTS[layout]) state.layout = layout;
     if (grade && GRADES[grade]) state.grade = grade;
